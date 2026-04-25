@@ -1,0 +1,96 @@
+import argparse
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import torchvision
+import torchvision.transforms as transforms
+
+from models.mixer import MLPMixer
+from models.efficientnet import get_efficientnet
+from train import train
+from test import evaluate
+from utils import save_results, plot_comparison
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model",    type=str,   default="mixer",
+                        choices=["mixer", "efficientnet"])
+    parser.add_argument("--epochs",   type=int,   default=30)
+    parser.add_argument("--lr",       type=float, default=1e-3)
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--pretrained", action="store_true")
+    parser.add_argument("--device",   type=str,   default="cuda")
+    parser.add_argument("--save_path", type=str,  default=None)
+    return parser.parse_args()
+
+def get_data(batch_size):
+    # CIFAR-10 needs to be upsampled to 224 for both models
+    transform_train = transforms.Compose([
+        transforms.Resize(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                             (0.2023, 0.1994, 0.2010)),
+    ])
+    transform_test = transforms.Compose([
+        transforms.Resize(224),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                             (0.2023, 0.1994, 0.2010)),
+    ])
+    train_set = torchvision.datasets.CIFAR10(
+        root="./data", train=True,  download=True, transform=transform_train)
+    test_set  = torchvision.datasets.CIFAR10(
+        root="./data", train=False, download=True, transform=transform_test)
+    train_loader = DataLoader(train_set, batch_size=batch_size,
+                              shuffle=True,  num_workers=2)
+    test_loader  = DataLoader(test_set,  batch_size=batch_size,
+                              shuffle=False, num_workers=2)
+    return train_loader, test_loader
+
+def main():
+    args = get_args()
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    train_loader, test_loader = get_data(args.batch_size)
+
+    if args.model == "mixer":
+        model = MLPMixer(
+            image_size=224, patch_size=16, num_classes=10,
+            hidden_dim=512, num_layers=8,
+            tokens_mlp_dim=256, channels_mlp_dim=2048
+        )
+    else:
+        model = get_efficientnet(num_classes=10, pretrained=args.pretrained)
+
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+                                 weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.epochs)
+
+    history = []
+    for epoch in range(1, args.epochs + 1):
+        train_loss, train_acc = train(model, train_loader,
+                                      optimizer, criterion, device)
+        val_loss,   val_acc   = evaluate(model, test_loader,
+                                          criterion, device)
+        scheduler.step()
+        history.append({
+            "epoch": epoch,
+            "train_loss": train_loss, "train_acc": train_acc,
+            "val_loss":   val_loss,   "val_acc":   val_acc
+        })
+        print(f"Epoch {epoch:>3} | "
+              f"Train Loss {train_loss:.4f} Acc {train_acc:.1f}% | "
+              f"Val Loss {val_loss:.4f} Acc {val_acc:.1f}%")
+
+    save_results(history, args.model)
+    if args.save_path:
+        torch.save(model.state_dict(), args.save_path)
+    print("Done. Results saved to results/")
+
+if __name__ == "__main__":
+    main()
