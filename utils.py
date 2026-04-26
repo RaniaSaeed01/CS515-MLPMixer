@@ -22,16 +22,18 @@ def save_results(history, model_name, save_dir="results"):
     plt.savefig(f"{save_dir}/{model_name}_curves.png")
     plt.close()
 
-def plot_comparison(results_dir="results"):
+def plot_comparison(results_dir="results", filter=""):
     import glob
-    files = glob.glob(f"{results_dir}/*_results.csv")
+    files = glob.glob(f"{results_dir}/*{filter}*_results.csv")
     fig, ax = plt.subplots(figsize=(8, 5))
     for f in files:
         df = pd.read_csv(f)
         name = f.split("/")[-1].replace("_results.csv", "")
         ax.plot(df["epoch"], df["val_acc"], label=name)
     ax.set_title("Validation Accuracy Comparison")
-    ax.set_xlabel("Epoch"); ax.set_ylabel("Accuracy (%)")
-    ax.legend(); plt.tight_layout()
-    plt.savefig(f"{results_dir}/comparison.png")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Accuracy (%)")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(f"{results_dir}/comparison{filter}.png")
     plt.close()
