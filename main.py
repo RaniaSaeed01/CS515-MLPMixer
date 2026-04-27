@@ -79,7 +79,8 @@ def main():
 
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+    lr = 1e-4 if args.model == "mixer_pretrained" else args.lr
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, 
                                  weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=args.epochs)
