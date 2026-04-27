@@ -13,8 +13,8 @@ from utils import save_results, plot_comparison
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model",    type=str,   default="mixer",
-                        choices=["mixer", "efficientnet"])
+    parser.add_argument("--model", type=str, default="mixer",
+                    choices=["mixer", "efficientnet", "mixer_pretrained"])
     parser.add_argument("--epochs",   type=int,   default=30)
     parser.add_argument("--lr",       type=float, default=1e-3)
     parser.add_argument("--batch_size", type=int, default=128)
@@ -70,6 +70,9 @@ def main():
             hidden_dim=512, num_layers=8,
             tokens_mlp_dim=256, channels_mlp_dim=2048
         )
+    elif args.model == "mixer_pretrained":
+        from models.mixer_pretrained import get_pretrained_mixer
+        model = get_pretrained_mixer(num_classes=num_classes)
     else:
         model = get_efficientnet(num_classes=num_classes,
                                 pretrained=args.pretrained)
