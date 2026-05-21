@@ -92,20 +92,21 @@ def plot_final_accuracy(results_dir: str = "results") -> None:
     cifar100_files = [f for f in glob.glob(f"{results_dir}/*_results.csv")
                       if f.replace("_results.csv", "").endswith("cifar100")]
 
-    def get_final_acc(files):
+    def get_final_acc(files, dataset):
         results = {}
         for f in files:
             df = pd.read_csv(f)
             name = f.split("\\")[-1].split("/")[-1].replace("_results.csv", "")
-            # Strip dataset suffix for cleaner labels
-            label = name.replace("_cifar10", "").replace("_cifar100", "")
+            # Strip dataset suffix and clean up label
+            label = name.replace(f"_{dataset}", "").replace("_", " ")
             results[label] = df["val_acc"].iloc[-1]
         return results
 
-    cifar10_results = get_final_acc(cifar10_files)
-    cifar100_results = get_final_acc(cifar100_files)
+    cifar10_results = get_final_acc(cifar10_files, "cifar10")
+    cifar100_results = get_final_acc(cifar100_files, "cifar100")
 
-    all_models = sorted(set(list(cifar10_results.keys()) + list(cifar100_results.keys())))
+    # Only show models that have at least a CIFAR-10 result
+    all_models = sorted(cifar10_results.keys())
     x = np.arange(len(all_models))
     width = 0.35
 
@@ -113,9 +114,12 @@ def plot_final_accuracy(results_dir: str = "results") -> None:
     bars1 = ax.bar(x - width/2,
                    [cifar10_results.get(m, 0) for m in all_models],
                    width, label="CIFAR-10", color="#0D9488")
-    bars2 = ax.bar(x + width/2,
-                   [cifar100_results.get(m, 0) for m in all_models],
-                   width, label="CIFAR-100", color="#1B2A4A")
+
+    # Only plot CIFAR-100 bars where data exists
+    cifar100_vals = [cifar100_results.get(m, None) for m in all_models]
+    cifar100_x = [x[i] + width/2 for i, v in enumerate(cifar100_vals) if v is not None]
+    cifar100_y = [v for v in cifar100_vals if v is not None]
+    bars2 = ax.bar(cifar100_x, cifar100_y, width, label="CIFAR-100", color="#1B2A4A")
 
     ax.bar_label(bars1, fmt="%.1f", padding=3, fontsize=9)
     ax.bar_label(bars2, fmt="%.1f", padding=3, fontsize=9)
@@ -124,7 +128,7 @@ def plot_final_accuracy(results_dir: str = "results") -> None:
     ax.set_xlabel("Model")
     ax.set_ylabel("Accuracy (%)")
     ax.set_xticks(x)
-    ax.set_xticklabels(all_models, rotation=15, ha="right")
+    ax.set_xticklabels(all_models, rotation=15, ha="right", fontsize=10)
     ax.legend()
     ax.set_ylim(0, 105)
     plt.tight_layout()
